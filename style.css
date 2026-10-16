@@ -267,8 +267,19 @@ button{font:inherit;color:inherit}
 .btn.primary{background:var(--brass);border-color:var(--brass);color:var(--on-brass);box-shadow:0 10px 26px -12px var(--brass-glow), inset 0 -3px 0 rgba(0,0,0,.18)}
 .btn .chip{min-width:26px;padding:3px 7px;border-radius:8px;font:700 13px var(--f-mono);background:rgba(0,0,0,.18)}
 .btn:not(.primary) .chip{background:var(--panel-2);color:var(--brass)}
+.btn .bl{display:grid;justify-items:center;gap:3px}
+.btn .bl small{font:500 10.5px var(--f-body);letter-spacing:.02em;opacity:.75;text-transform:none}
 .btn.hot:not(:disabled){animation:hotGlow 1.1s ease-in-out infinite}
 @keyframes hotGlow{50%{box-shadow:0 0 0 4px var(--brass-glow), 0 10px 30px -8px var(--brass-glow)}}
+/* Hot dice: every die scores, the turn goes on with all six — the roll button has to stand out */
+.btn.primary.hot:not(:disabled){
+  background:linear-gradient(180deg,#ffd27a,var(--brass));
+  outline:2px solid var(--ivory);outline-offset:2px;
+  animation:hotGlow 1.1s ease-in-out infinite, hotBeat 1.1s ease-in-out infinite;
+}
+.btn.primary.hot .bl small{opacity:1;font-weight:700}
+@keyframes hotBeat{50%{transform:scale(1.04)}}
+@media (prefers-reduced-motion: reduce){ .btn.primary.hot:not(:disabled){animation:none} }
 .kbd{display:none;font:500 10px var(--f-mono);opacity:.6;position:absolute;bottom:5px;right:9px}
 @media (hover:hover) and (pointer:fine){ .kbd{display:block} }
 

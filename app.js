@@ -318,7 +318,10 @@ function ui() {
   const left = fresh ? 6 : (S.tray.length - S.sel.size) || 6;
   const roll = $("#roll");
   roll.disabled = !(my && (fresh || ss > 0));
-  roll.classList.toggle("hot", my && !fresh && ss > 0 && S.tray.length === S.sel.size);
+  // Hot dice: every die on the table is picked and scores, the next throw is all six again
+  const hot = my && !fresh && ss > 0 && S.tray.length === S.sel.size;
+  roll.classList.toggle("hot", hot);
+  $("#rollHint").textContent = hot ? "горячие кости: ещё бросок всеми 6" : "продолжает ход";
   $("#rollN").textContent = left;
   $("#bank").disabled = !(my && ss > 0 && S.turn + ss >= S.minBank);
   $("#bankV").textContent = fmt(S.turn + ss);
@@ -482,7 +485,11 @@ async function showZonk(e) {
 
 // The dice the turn was written with, as combinations: 1 | 5,5 | 3,3,3. Same pictures as the combination list.
 function turnDice() {
-  const groups = S.aside.flatMap(g => splitDice(g.vals));
+  // Single ones and fives from all throws of the turn go together, after the bigger combinations
+  const all = S.aside.flatMap(g => splitDice(g.vals));
+  const single = f => g => g.every(v => v === f) && g.length < 3;
+  const ones = all.filter(single(1)).flat(), fives = all.filter(single(5)).flat();
+  const groups = [...all.filter(g => !single(1)(g) && !single(5)(g)), ...(ones.length ? [ones] : []), ...(fives.length ? [fives] : [])];
   if (!groups.length) return "";
   return `<span class="ld">${groups.map(g => `<span class="lg">${g.map(mini).join("")}</span>`).join('<span class="sep">|</span>')}</span>`;
 }
@@ -620,6 +627,8 @@ function toggleDie(i) {
   ui();
   const ss = scoreDice(selVals()) || 0;
   if (!S.sel.size) status("Выберите очковые кости — нажмите на них");
+  else if (ss > 0 && S.sel.size === S.tray.length)
+    status(`🔥 Горячие кости! +${ss} — бросайте все 6 снова${S.turn + ss >= S.minBank ? " или записывайте" : ""}`);
   else if (ss > 0 && S.turn + ss < S.minBank) status(`Выбрано +${ss}. Записать можно от ${S.minBank} — бросайте дальше`);
   else if (ss > 0) status(`Выбрано +${ss}. Бросайте дальше или записывайте`);
   else status("Эти кости не дают очков вместе");
