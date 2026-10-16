@@ -36,8 +36,9 @@ export const SCORE_PAYOUT = [
   { from: 0, mult: 0 },
 ];
 
-// Duel: ROUNDS rounds, both play one turn in each. The winner takes both stakes minus DUEL_FEE,
+// Duel: DUEL_ROUNDS rounds, both play one turn in each. The winner takes both stakes minus DUEL_FEE,
 // a draw gives the stakes back.
+export const DUEL_ROUNDS = 5;
 export const DUEL_FEE = 0.05;
 export const DUEL_WIN_MULT = 2 * (1 - DUEL_FEE);
 const FEED_MAX = 80; // duel events kept for the waiting player
@@ -100,7 +101,7 @@ function endTurn(s, ev, rnd) {
   } else {
     s.cur = (s.cur + 1) % s.players.length;
     // A duel round is over when the turn is back with the one who started
-    if (s.mode === "duel" && s.cur === s.first && ++s.round > ROUNDS) return finish(s, ev);
+    if (s.mode === "duel" && s.cur === s.first && ++s.round > DUEL_ROUNDS) return finish(s, ev);
   }
   startTurn(s, ev, rnd);
 }
@@ -233,7 +234,7 @@ export function publicState(s, seat = 0) {
     temper: s.temper ?? null,
     minBank: minBank(s),
     round: s.round ?? null,
-    rounds: ROUNDS,
+    rounds: s.mode === "duel" ? DUEL_ROUNDS : ROUNDS,
     cur: v(s.cur),
     players: order.map(p => ({ total: p.total, bot: !!p.bot })),
     dice: s.dice,

@@ -301,6 +301,10 @@ button{font:inherit;color:inherit}
 .log li.win span:last-child{color:var(--good);font-weight:600}
 .log li.empty{display:block;color:var(--ink-dim);opacity:.7}
 .log em{font-style:normal;font-family:var(--f-mono);color:var(--ink)}
+.log .ld{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px}
+.log .lg{display:inline-flex;gap:2px}
+.log .ld .mini{--m:15px}
+.log .sep{color:var(--ink-dim);opacity:.6;font:500 12px var(--f-mono)}
 .toggle{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-dim);cursor:pointer}
 .toggle input{width:18px;height:18px;accent-color:var(--brass)}
 

@@ -2,7 +2,7 @@
 // and the page only animates what it sends. Both ways a move gives a list of events (see engine/game.js),
 // and the page plays them one by one.
 
-import { scoreDice, scoringDice } from "./engine/rules.js";
+import { scoreDice, scoringDice, splitDice } from "./engine/rules.js";
 import { newGame, act, publicState, SCORE_PAYOUT } from "./engine/game.js";
 
 const $ = s => document.querySelector(s);
@@ -480,6 +480,13 @@ async function showZonk(e) {
   $("#tray").classList.remove("zonked");
 }
 
+// The dice the turn was written with, as combinations: 1 | 5,5 | 3,3,3. Same pictures as the combination list.
+function turnDice() {
+  const groups = S.aside.flatMap(g => splitDice(g.vals));
+  if (!groups.length) return "";
+  return `<span class="ld">${groups.map(g => `<span class="lg">${g.map(mini).join("")}</span>`).join('<span class="sep">|</span>')}</span>`;
+}
+
 async function showBank(e) {
   const from = S.scores[e.p];
   S.scores[e.p] = e.total;
@@ -487,7 +494,7 @@ async function showBank(e) {
   sndBank();
   if (e.p === 0) haptic("success");
   tween(e.p, from, e.total);
-  addLog(e.p, `${e.p ? "записал" : "записали"} <em>+${fmt(e.gain)}</em> → ${fmt(e.total)}`);
+  addLog(e.p, `${e.p ? "записал" : "записали"} <em>+${fmt(e.gain)}</em> → ${fmt(e.total)}${turnDice()}`);
   status(e.p ? `${foe()} записал ${fmt(e.gain)}` : `Записано ${fmt(e.gain)}`);
   S.turn = 0;
   ui();

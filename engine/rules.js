@@ -58,15 +58,16 @@ function groups(c) {
   return out;
 }
 
-// The most points for using up all these dice, or null if some can't be used
+// The best way to use up all these dice: { points, groups } (groups as dice-by-face counts),
+// or null if some can't be used
 function bestSplit(c, memo) {
-  if (c.every(n => n === 0)) return 0;
+  if (c.every(n => n === 0)) return { points: 0, groups: [] };
   const key = c.join("");
   if (memo.has(key)) return memo.get(key);
   let top = null;
   for (const [use, points] of groups(c)) {
     const rest = bestSplit(c.map((n, f) => n - use[f]), memo);
-    if (rest !== null && (top === null || points + rest > top)) top = points + rest;
+    if (rest && (!top || points + rest.points > top.points)) top = { points: points + rest.points, groups: [use, ...rest.groups] };
   }
   memo.set(key, top);
   return top;
@@ -77,7 +78,24 @@ function bestSplit(c, memo) {
 // straights 1-5 / 2-6 / 1-6, three pairs, a full house (3 + 2). 1-1-1-5-5 is 1000 + 100, not a full house.
 export function scoreDice(dice) {
   if (!dice.length) return 0;
-  return bestSplit(countFaces(dice), new Map());
+  return bestSplit(countFaces(dice), new Map())?.points ?? null;
+}
+
+// The combinations those dice were scored as, for showing: [3,3,1,5,5,3] -> [[3,3,3], [1], [5,5]].
+// Single ones and single fives of one face go together. [] if the dice score nothing.
+export function splitDice(dice) {
+  const best = dice.length ? bestSplit(countFaces(dice), new Map()) : null;
+  if (!best) return [];
+  const faces = use => use.flatMap((n, f) => Array(n).fill(f));
+  const out = [];
+  const singles = { 1: [], 5: [] };
+  for (const use of best.groups) {
+    const g = faces(use);
+    if (g.length === 1 && singles[g[0]]) singles[g[0]].push(g[0]);
+    else out.push(g);
+  }
+  for (const f of [1, 5]) if (singles[f].length) out.push(singles[f]);
+  return out;
 }
 
 // scoreDice of every choice of dice from a roll: scores[mask] is for the dice whose bits are set.
