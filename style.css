@@ -352,6 +352,8 @@ button{font:inherit;color:inherit}
 .seg input:focus-visible + label{outline:2px solid var(--brass);outline-offset:2px}
 .mbtns{display:grid;gap:10px;grid-template-columns:1fr}
 .mbtns.two{grid-template-columns:1fr 1fr}
+/* The end card: everything centred */
+#endView{text-align:center}
 .final{display:flex;justify-content:center;gap:18px;align-items:baseline;font:800 clamp(34px,10vw,48px)/1 var(--f-display);font-variant-numeric:tabular-nums}
 .final span{color:var(--ink-dim);font-size:.6em}
 .final .w{color:var(--brass)}
