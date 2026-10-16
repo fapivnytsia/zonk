@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <title>ZONK</title>
+<!-- ?v= changes with every release, so a cached old style or script is never mixed with a new page -->
 <link rel="stylesheet" href="fonts.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -59,8 +60,16 @@
         <span class="selv" id="selv"></span>
       </div>
       <div class="btns">
-        <button class="btn primary" id="roll" type="button"><span class="bl">Бросить<small id="rollHint">продолжает ход</small></span><span class="chip" id="rollN">6</span><span class="kbd">Пробел</span></button>
-        <button class="btn" id="bank" type="button"><span class="bl">Записать<small>завершает ход</small></span><span class="chip" id="bankV">0</span><span class="kbd">Enter</span></button>
+        <button class="btn primary" id="roll" type="button">
+          <span class="bt">Бросить <span class="chip" id="rollN">6</span></span>
+          <small class="bh" id="rollHint">продолжает ход</small>
+          <span class="kbd">(пробел)</span>
+        </button>
+        <button class="btn" id="bank" type="button">
+          <span class="bt">Записать <span class="chip" id="bankV">0</span></span>
+          <small class="bh">завершает ход</small>
+          <span class="kbd">(Enter)</span>
+        </button>
       </div>
     </section>
   </main>
@@ -165,6 +174,6 @@
 
 <canvas id="fx" aria-hidden="true"></canvas>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=2"></script>
 </body>
 </html>
