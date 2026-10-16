@@ -108,13 +108,6 @@
         <input type="radio" name="target" id="tg10" value="10000"><label for="tg10">10 000<small>долго</small></label>
       </div>
     </div>
-    <div class="field">
-      <span>Характер бота</span>
-      <div class="seg">
-        <input type="radio" name="temper" id="tmCalm" value="calm"><label for="tmCalm">Осторожный<small>записывает рано</small></label>
-        <input type="radio" name="temper" id="tmBold" value="bold"><label for="tmBold">Азартный<small>рискует до конца</small></label>
-      </div>
-    </div>
     <div class="mbtns" id="startBtns">
       <button class="btn primary" id="startBtn" type="button">Начать партию</button>
       <button class="btn" id="cancelBtn" type="button" hidden>Вернуться к игре</button>
@@ -136,8 +129,6 @@
     <div id="botFields" class="field">
       <span>Цель партии</span>
       <div class="seg" id="targetSeg"></div>
-      <span>Характер бота</span>
-      <div class="seg" id="temperSeg"></div>
     </div>
     <div id="scoreFields" class="field" hidden>
       <span>Выплата за очки</span>
@@ -174,6 +165,6 @@
 
 <canvas id="fx" aria-hidden="true"></canvas>
 
-<script type="module" src="app.js?v=2"></script>
+<script type="module" src="app.js?v=3"></script>
 </body>
 </html>

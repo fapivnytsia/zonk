@@ -95,13 +95,12 @@ function loadPrefs() {
   try {
     const p = JSON.parse(localStorage.getItem("zonk.prefs") || "{}");
     if ([2000, 5000, 10000].includes(p.target)) S.target = p.target;
-    if (["calm", "bold"].includes(p.temper)) S.temper = p.temper;
     if (typeof p.sound === "boolean") S.sound = p.sound;
   } catch (e) {}
 }
 function savePrefs() {
   try {
-    localStorage.setItem("zonk.prefs", JSON.stringify({ target: S.target, temper: S.temper, sound: S.sound }));
+    localStorage.setItem("zonk.prefs", JSON.stringify({ target: S.target, sound: S.sound }));
   } catch (e) {}
 }
 
@@ -659,7 +658,6 @@ const showGone = () => showMessage("Партия закончилась", "Но�
 // ---------- start: in a plain browser ----------
 function syncForm() {
   $(`input[name="target"][value="${S.target}"]`).checked = true;
-  $(`input[name="temper"][value="${S.temper}"]`).checked = true;
 }
 
 function openStart() {
@@ -685,14 +683,13 @@ function resetBoard() {
 
 async function startLocal() {
   S.target = +$('input[name="target"]:checked').value;
-  S.temper = $('input[name="temper"]:checked').value;
   S.mode = "bot";
   savePrefs();
   audio();
   resetBoard();
   hideModal();
-  addLog(2, `партия до ${fmt(S.target)}, бот ${S.temper === "bold" ? "азартный" : "осторожный"}`);
-  const r = await engine.start({ target: S.target, temper: S.temper });
+  const r = await engine.start({ target: S.target });
+  addLog(2, `партия до ${fmt(S.target)}, бот ${r.state.temper === "bold" ? "азартный" : "осторожный"}`);
   addLog(2, `жребий: первым ходит ${r.events[0].p ? "бот" : "игрок"}`);
   await apply(r, S.gen);
 }
@@ -704,8 +701,6 @@ function openOnlineStart(bet, picking) {
   $("#roundsNote").textContent = `${picking.rounds} раундов`;
   $("#targetSeg").innerHTML = picking.targets.map((t, i) =>
     `<input type="radio" name="btarget" id="bt${i}" value="${t}"${t === S.target ? " checked" : ""}><label for="bt${i}">${fmt(t)}</label>`).join("");
-  $("#temperSeg").innerHTML = Object.entries(picking.tempers).map(([k, v]) =>
-    `<input type="radio" name="btemper" id="bm${k}" value="${k}"${k === S.temper ? " checked" : ""}><label for="bm${k}">${v[0].toUpperCase() + v.slice(1)}</label>`).join("");
   $("#paytable").innerHTML = picking.payout.slice().reverse().map(r => `<li>${fmt(r.from)}+ <b>×${r.mult}</b></li>`).join("");
   $("#mdBot").checked = true;
   S.minBank = picking.minBank;
@@ -723,17 +718,16 @@ function modeFields() {
 async function startOnline() {
   const mode = $("#mdScore").checked ? "score" : "bot";
   const target = +($('input[name="btarget"]:checked')?.value || 5000);
-  const temper = $('input[name="btemper"]:checked')?.value || "calm";
   $("#onlineStartBtn").disabled = true;
   audio();
-  const r = await engine.start({ mode, target, temper });
+  const r = await engine.start({ mode, target });
   $("#onlineStartBtn").disabled = false;
   if (r.gone) return showGone();
   if (r.error || !r.events) {
     $("#onlineErr").textContent = r.error || "Не получилось начать.";
     return;
   }
-  S.mode = mode; S.target = target; S.temper = temper;
+  S.mode = mode; S.target = target;
   savePrefs();
   resetBoard();
   setBrand(` · ставка ${fmt(r.bet)}`);
@@ -741,7 +735,7 @@ async function startOnline() {
   tg?.enableClosingConfirmation?.();
   addLog(2, mode === "score"
     ? `на очки, ${r.state.rounds} раундов, ставка ${coins(r.bet)}`
-    : `партия до ${fmt(target)}, бот ${temper === "bold" ? "азартный" : "осторожный"}, ставка ${coins(r.bet)}`);
+    : `партия до ${fmt(target)}, бот ${r.state.temper === "bold" ? "азартный" : "осторожный"}, ставка ${coins(r.bet)}`);
   if (mode === "bot") addLog(2, `жребий: первым ходит ${r.events[0].p ? "бот" : "игрок"}`);
   await apply(r, S.gen);
 }

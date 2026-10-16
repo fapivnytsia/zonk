@@ -43,16 +43,17 @@ export const DUEL_FEE = 0.05;
 export const DUEL_WIN_MULT = 2 * (1 - DUEL_FEE);
 const FEED_MAX = 80; // duel events kept for the waiting player
 
-// opts: { mode: "bot", target, temper }, { mode: "score" } or { mode: "duel" }. user: { id, name }, for a duel
+// opts: { mode: "bot", target }, { mode: "score" } or { mode: "duel" }. user: { id, name }, for a duel
 // the second player gets the next id. null if opts are wrong. Who starts against the bot or in a duel
-// is a coin toss; the bot may already move here.
+// and the bot's temper are a coin toss; the bot may already move here.
 export function newGame(opts, user, ev, rnd = Math.random) {
   const me = { id: user.id, name: user.name, total: 0 };
   let s;
   if (opts.mode === "bot") {
-    if (!TARGETS.includes(opts.target) || !TEMPERS[opts.temper]) return null;
+    if (!TARGETS.includes(opts.target)) return null;
+    const tempers = Object.keys(TEMPERS);
     s = {
-      mode: "bot", target: opts.target, temper: opts.temper,
+      mode: "bot", target: opts.target, temper: tempers[Math.floor(rnd() * tempers.length)],
       players: [me, { id: 0, name: "Бот", bot: true, total: 0 }],
       cur: rnd() < 0.5 ? 0 : 1,
     };
