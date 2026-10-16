@@ -4,7 +4,8 @@ import { botChoose } from "./bot.js";
 // A Zonk game as a plain object that is saved as JSON. Pure logic, no I/O.
 //
 // players[] take turns, players[cur] moves now; a bot player plays its whole turn at once.
-// A duel later is just two human players in players[].
+// A duel is two human players: seats 0 and 1. Its events also go to s.feed, so the waiting
+// player's page can replay the other one's moves.
 // Every move fills `ev` with what happened, in order, so the page can animate it:
 //   { t: "turn", p, round? }       a turn starts with an empty tray
 //   { t: "roll", p, dice }         dice thrown
@@ -15,7 +16,7 @@ import { botChoose } from "./bot.js";
 //   { t: "bank", p, gain, total }  the turn's points written to the total
 //   { t: "end" }                   the game is over
 
-export const MODES = { bot: "против бота", score: "на очки" };
+export const MODES = { bot: "против бота", score: "на очки", duel: "дуэль" };
 
 // Against the bot: a race to the target, a turn is written only from MIN_BANK points
 export const TARGETS = [2000, 5000, 10000];
@@ -35,8 +36,15 @@ export const SCORE_PAYOUT = [
   { from: 0, mult: 0 },
 ];
 
-// opts: { mode: "bot", target, temper } or { mode: "score" }. user: { id, name }.
-// null if opts are wrong. Who starts against the bot is a coin toss, the bot may already move here.
+// Duel: ROUNDS rounds, both play one turn in each. The winner takes both stakes minus DUEL_FEE,
+// a draw gives the stakes back.
+export const DUEL_FEE = 0.05;
+export const DUEL_WIN_MULT = 2 * (1 - DUEL_FEE);
+const FEED_MAX = 80; // duel events kept for the waiting player
+
+// opts: { mode: "bot", target, temper }, { mode: "score" } or { mode: "duel" }. user: { id, name }, for a duel
+// the second player gets the next id. null if opts are wrong. Who starts against the bot or in a duel
+// is a coin toss; the bot may already move here.
 export function newGame(opts, user, ev, rnd = Math.random) {
   const me = { id: user.id, name: user.name, total: 0 };
   let s;
@@ -49,22 +57,39 @@ export function newGame(opts, user, ev, rnd = Math.random) {
     };
   } else if (opts.mode === "score") {
     s = { mode: "score", round: 1, players: [me], cur: 0 };
+  } else if (opts.mode === "duel") {
+    const first = rnd() < 0.5 ? 0 : 1;
+    s = {
+      mode: "duel", round: 1, first, cur: first, seq: 0, feed: [],
+      players: [me, { id: user.id + 1, name: "", total: 0 }],
+    };
   } else {
     return null;
   }
   Object.assign(s, { dice: [], aside: [], turnPts: 0, rollNo: 0, done: false, winner: null });
   startTurn(s, ev, rnd);
+  remember(s, ev);
   return s;
 }
 
 const minBank = s => (s.mode === "bot" ? MIN_BANK : 0);
+
+// A duel keeps its last events numbered, the waiting player's page asks for the ones it has not seen
+function remember(s, ev) {
+  if (s.mode !== "duel") return;
+  for (const e of ev) {
+    s.seq++;
+    s.feed.push({ ...e, n: s.seq });
+  }
+  if (s.feed.length > FEED_MAX) s.feed = s.feed.slice(-FEED_MAX);
+}
 
 function startTurn(s, ev, rnd) {
   s.dice = [];
   s.aside = [];
   s.turnPts = 0;
   s.rollNo++;
-  ev.push({ t: "turn", p: s.cur, ...(s.mode === "score" && { round: s.round }) });
+  ev.push({ t: "turn", p: s.cur, ...(s.mode !== "bot" && { round: s.round }) });
   if (s.players[s.cur].bot) botTurn(s, ev, rnd);
 }
 
@@ -74,6 +99,8 @@ function endTurn(s, ev, rnd) {
     if (s.round > ROUNDS) return finish(s, ev);
   } else {
     s.cur = (s.cur + 1) % s.players.length;
+    // A duel round is over when the turn is back with the one who started
+    if (s.mode === "duel" && s.cur === s.first && ++s.round > ROUNDS) return finish(s, ev);
   }
   startTurn(s, ev, rnd);
 }
@@ -81,6 +108,10 @@ function endTurn(s, ev, rnd) {
 function finish(s, ev) {
   s.done = true;
   s.dice = [];
+  if (s.mode === "duel" && !s.forfeited) {
+    const [a, b] = s.players.map(p => p.total);
+    s.winner = a === b ? null : a > b ? 0 : 1;
+  }
   ev.push({ t: "end" });
 }
 
@@ -150,17 +181,25 @@ function checkPick(s, picked) {
   return { idx: [...picked].sort((a, b) => a - b), points };
 }
 
-// A move of the player whose turn it is: "roll" (the first throw of a turn, or put picked aside and throw
-// the rest), "bank" (put picked aside and write the turn) or "forfeit" (give up: the game is lost at once).
-// Returns an error text, or nothing if made.
-export function act(s, action, picked, ev, rnd = Math.random) {
+// A move: "roll" (the first throw of a turn, or put picked aside and throw the rest), "bank" (put picked
+// aside and write the turn) — only for the player whose turn it is — or "forfeit": the player in `seat`
+// gives up, the game is lost at once (in a duel the other one wins). Returns an error text, or nothing if made.
+export function act(s, action, picked, ev, rnd = Math.random, seat = s.cur) {
+  const error = move(s, action, picked, ev, rnd, seat);
+  if (!error) remember(s, ev);
+  return error;
+}
+
+function move(s, action, picked, ev, rnd, seat) {
   if (s.done) return "Партия уже закончилась.";
   if (action === "forfeit") {
     s.forfeited = true;
-    if (s.mode === "bot") s.winner = (s.cur + 1) % s.players.length;
+    s.forfeitedBy = seat;
+    if (s.players.length > 1) s.winner = (seat + 1) % s.players.length;
     finish(s, ev);
     return;
   }
+  if (seat !== s.cur) return "Сейчас ход соперника.";
   if (action === "roll" && !s.dice.length) {
     throwDice(s, DICE, ev, rnd);
     return;
@@ -177,8 +216,17 @@ export function act(s, action, picked, ev, rnd = Math.random) {
   else throwDice(s, n, ev, rnd);
 }
 
-// What the page sees: no ids, the player's choice of dice stays on the page until a move
-export function publicState(s) {
+// Seats as the player in `seat` sees them: they are always 0, the other one 1
+const seen = (s, seat) => p => (p === null || p === undefined ? p : (p - seat + s.players.length) % s.players.length);
+
+// Events of a move as the player in `seat` sees them
+export const viewEvents = (s, ev, seat = 0) => ev.map(e => ("p" in e ? { ...e, p: seen(s, seat)(e.p) } : e));
+
+// What the page sees, from the side of the player in `seat`: no ids, the player's choice of dice
+// stays on the page until a move
+export function publicState(s, seat = 0) {
+  const v = seen(s, seat);
+  const order = s.players.map((_, i) => s.players[(i + seat) % s.players.length]);
   return {
     mode: s.mode,
     target: s.target ?? null,
@@ -186,22 +234,31 @@ export function publicState(s) {
     minBank: minBank(s),
     round: s.round ?? null,
     rounds: ROUNDS,
-    cur: s.cur,
-    players: s.players.map(p => ({ total: p.total, bot: !!p.bot })),
+    cur: v(s.cur),
+    players: order.map(p => ({ total: p.total, bot: !!p.bot })),
     dice: s.dice,
     aside: s.aside,
     turnPts: s.turnPts,
     rollNo: s.rollNo,
     done: s.done,
-    winner: s.winner,
+    winner: v(s.winner),
     forfeited: !!s.forfeited,
+    forfeitedBy: v(s.forfeitedBy),
+    abandoned: !!s.abandoned,
+    ...(s.mode === "duel" && { seq: s.seq, feed: viewEvents(s, s.feed, seat) }),
   };
 }
 
-// The finished game for the player who started it: stake multiplier and a short description
-export function result(s) {
-  const me = s.players[0];
-  if (s.forfeited) return { mult: 0, label: "сдался" };
+// The finished game for the player in `seat`: stake multiplier and a short description
+export function result(s, seat = 0) {
+  const me = s.players[seat];
+  if (s.forfeited && s.forfeitedBy === seat) return { mult: 0, label: s.abandoned ? "партия брошена" : "сдался" };
+  if (s.mode === "duel") {
+    const score = `${me.total} : ${s.players[1 - seat].total}`;
+    if (s.forfeited) return { mult: DUEL_WIN_MULT, label: s.abandoned ? "соперник бросил партию" : "соперник сдался" };
+    if (s.winner === null) return { mult: 1, label: `ничья ${score}` };
+    return s.winner === seat ? { mult: DUEL_WIN_MULT, label: `победа ${score}` } : { mult: 0, label: `поражение ${score}` };
+  }
   if (s.mode === "bot") {
     const score = `${me.total} : ${s.players[1].total}`;
     return s.winner === 0

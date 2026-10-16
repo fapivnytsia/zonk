@@ -29,6 +29,7 @@ const S = {
   tray: [], sel: new Set(), aside: [],
   busy: false, rolling: false, over: true, started: false,
   gen: 0, log: [], sound: true, tw: [false, false],
+  seq: 0, foe: "Бот", // duel: the last event seen from the game's feed, the other player's name
 };
 const alive = g => g === S.gen;
 
@@ -288,15 +289,18 @@ function tween(p, from, to) {
 }
 
 const solo = () => S.mode === "score";
+const duel = () => S.mode === "duel";
+const foe = () => (duel() ? S.foe : "Бот");
 
 function ui() {
   $("#players").classList.toggle("solo", solo());
+  $("#foeName").textContent = foe();
   $("#p1").hidden = solo();
   for (const p of solo() ? [0] : [0, 1]) {
     if (!S.tw[p]) $("#t" + p).textContent = fmt(S.scores[p]);
-    const goal = solo() ? SOLO_GOAL : S.target;
+    const goal = solo() || duel() ? SOLO_GOAL : S.target;
     $("#b" + p).style.width = Math.min(100, S.scores[p] / goal * 100) + "%";
-    $("#m" + p).textContent = solo()
+    $("#m" + p).textContent = solo() || duel()
       ? `раунд ${Math.min(S.round, S.rounds)} из ${S.rounds}`
       : `осталось ${fmt(Math.max(0, S.target - S.scores[p]))}`;
     $("#p" + p).classList.toggle("on", S.started && !S.over && S.cur === p);
@@ -336,7 +340,15 @@ function refreshDice(ss) {
 }
 
 function renderRules() {
-  const items = solo()
+  const items = duel()
+    ? [
+        "Бросьте кости и <strong>отложите хотя бы одну очковую</strong>.",
+        "Дальше выбор: перебросить оставшиеся или <strong>записать</strong> очки хода.",
+        "Бросок без очков — <strong>ZONK</strong>: очки хода сгорают, ход переходит.",
+        "Все 6 костей дали очки — <strong>горячие кости</strong>: бросайте все 6 снова.",
+        `${S.rounds} раундов, ходите по очереди. У кого больше очков — забирает банк, ничья — ставки назад.`,
+      ]
+    : solo()
     ? [
         "Бросьте кости и <strong>отложите хотя бы одну очковую</strong>.",
         "Дальше выбор: перебросить оставшиеся или <strong>записать</strong> очки хода.",
@@ -356,7 +368,7 @@ function renderRules() {
 }
 
 function setBrand(extra = "") {
-  $("#brandSub").textContent = (solo() ? "на очки" : "против бота") + extra;
+  $("#brandSub").textContent = (duel() ? "дуэль" : solo() ? "на очки" : "против бота") + extra;
 }
 
 // ---------- log ----------
@@ -367,7 +379,7 @@ function addLog(who, html, cls = "") {
 }
 function renderLog() {
   $("#log").innerHTML = S.log.length
-    ? S.log.map(e => `<li class="${e.cls} w${e.who}"><span class="tag">${e.who === 0 ? "Вы" : e.who === 1 ? "Бот" : "—"}</span><span>${e.html}</span></li>`).join("")
+    ? S.log.map(e => `<li class="${e.cls} w${e.who}"><span class="tag">${e.who === 0 ? "Вы" : e.who === 1 ? (duel() ? "Соп" : "Бот") : "—"}</span><span>${e.html}</span></li>`).join("")
     : '<li class="empty">Здесь появится история ходов.</li>';
 }
 
@@ -396,6 +408,11 @@ async function showTurn(e) {
   if (e.p === 0) {
     flash(solo() ? `Раунд ${S.round}` : "Ваш ход", "me", 1000);
     status("Ваш ход — бросайте кости");
+    if (duel()) haptic("success");
+  } else if (duel()) {
+    flash("Ход соперника", "bot", 1000);
+    status(`${foe()} ходит — ждём`, true);
+    await sleep(600);
   } else {
     flash("Ход бота", "bot", 1000);
     status("Бот берёт кости", true);
@@ -406,7 +423,7 @@ async function showTurn(e) {
 async function showRoll(e) {
   S.rolling = true; S.sel.clear(); S.tray = e.dice;
   ui();
-  status(e.p === 0 ? "Кости летят…" : "Бот бросает…");
+  status(e.p === 0 ? "Кости летят…" : `${foe()} бросает…`);
   if (e.p === 0) haptic("roll");
   await rollAnim(e.dice);
   S.rolling = false;
@@ -456,7 +473,7 @@ async function showZonk(e) {
   if (e.p === 0) haptic("error");
   if (e.lost > 0) popup(e.p, "−" + fmt(e.lost), "bad");
   addLog(e.p, e.lost > 0 ? `ZONK, сгорело ${fmt(e.lost)}` : "ZONK", "zonk");
-  status(e.p === 0 ? "Ни одной очковой кости" : "У бота пусто");
+  status(e.p === 0 ? "Ни одной очковой кости" : duel() ? "У соперника пусто" : "У бота пусто");
   S.turn = 0;
   ui();
   await sleep(1700);
@@ -471,7 +488,7 @@ async function showBank(e) {
   if (e.p === 0) haptic("success");
   tween(e.p, from, e.total);
   addLog(e.p, `${e.p ? "записал" : "записали"} <em>+${fmt(e.gain)}</em> → ${fmt(e.total)}`);
-  status(e.p ? `Бот записал ${fmt(e.gain)}` : `Записано ${fmt(e.gain)}`);
+  status(e.p ? `${foe()} записал ${fmt(e.gain)}` : `Записано ${fmt(e.gain)}`);
   S.turn = 0;
   ui();
   await sleep(1000);
@@ -482,6 +499,7 @@ function sync(st, redraw) {
   Object.assign(S, {
     mode: st.mode, minBank: st.minBank, rounds: st.rounds, cur: st.cur, turn: st.turnPts, rollNo: st.rollNo,
     target: st.target ?? S.target, temper: st.temper ?? S.temper, round: st.round ?? S.round,
+    seq: st.seq ?? S.seq,
   });
   S.scores = [st.players[0].total, st.players[1]?.total ?? 0];
   const same = S.tray.length === st.dice.length && S.tray.every((v, i) => v === st.dice[i]);
@@ -498,6 +516,7 @@ function sync(st, redraw) {
 // What the engine answered to a start or a move
 async function apply(r, g) {
   if (r.gone) return showGone();
+  if (r.foe) S.foe = r.foe;
   if (r.events) await replay(r.events, g);
   if (!alive(g)) return;
   // No events and no error: the page missed a move, the dice are put down as they are now
@@ -505,7 +524,44 @@ async function apply(r, g) {
   if (r.error) status(r.error);
   S.busy = false;
   ui();
-  if (r.state?.done) finish(r);
+  if (r.state?.done || r.final) return finish(r);
+  watch();
+}
+
+// ---------- duel: watching the other player ----------
+// While it is the other player's turn the page asks the server every POLL_MS and plays their moves
+// from the game's feed: the events it has not seen yet.
+const POLL_MS = 2500;
+let watching = false;
+
+function watch() {
+  if (watching || !engine?.online || !duel() || S.over || S.cur === 0) return;
+  watching = true;
+  setTimeout(lookAgain, POLL_MS);
+}
+
+async function lookAgain() {
+  watching = false;
+  if (!duel() || S.over || S.cur === 0) return;
+  if (S.busy) return watch();
+  const g = S.gen;
+  const r = await engine.state();
+  if (!alive(g) || S.over) return;
+  if (r.gone) return showGone();
+  if (r.error) return watch();
+  if (r.foe) S.foe = r.foe;
+  const fresh = (r.state?.feed || []).filter(e => e.n > S.seq);
+  if (fresh.length) {
+    S.busy = true;
+    ui();
+    await replay(fresh, g);
+    if (!alive(g)) return;
+  }
+  if (r.state) sync(r.state, false);
+  S.busy = false;
+  ui();
+  if (r.state?.done || r.final) return finish(r);
+  watch();
 }
 
 // ---------- player input ----------
@@ -676,22 +732,33 @@ async function startOnline() {
 
 // ---------- end ----------
 function finish(r) {
-  const st = r.state;
+  const st = r.state || {};
   S.over = true; S.busy = false;
   tg?.disableClosingConfirmation?.();
   ui();
-  const won = !st.forfeited && (solo() ? (r.result?.net ?? 0) > 0 : st.winner === 0);
-  if (st.forfeited) addLog(0, "сдались", "zonk");
-  else if (!solo()) addLog(st.winner, st.winner ? "выигрывает партию" : "выиграли партию!", "win");
-  status(st.forfeited ? "Партия сдана" : solo() ? `Итог: ${fmt(S.scores[0])} очков` : won ? "Победа!" : "Бот выиграл партию");
-  if (won) { sndWin(); confetti(); } else sndLose();
+  const net = r.result?.net;
+  const iGaveUp = st.forfeited && st.forfeitedBy === 0;
+  const foeGaveUp = st.forfeited && st.forfeitedBy === 1;
+  const draw = duel() && !st.forfeited && (net === 0 || (net === undefined && st.done && st.winner === null));
+  const won = duel() ? (net !== undefined ? net > 0 : foeGaveUp || st.winner === 0)
+    : !st.forfeited && (solo() ? (net ?? 0) > 0 : st.winner === 0);
+  const gaveUp = st.abandoned ? "Партия брошена" : "Партия сдана";
+  const foeGone = st.abandoned ? "Соперник бросил партию" : "Соперник сдался";
+  const title = iGaveUp ? gaveUp : foeGaveUp ? foeGone : solo() ? "Итог" : draw ? "Ничья" : won ? "Победа!" : `${foe()} выиграл`;
 
-  $("#endTitle").textContent = st.forfeited ? "Партия сдана" : solo() ? "Итог" : won ? "Победа!" : "Бот выиграл";
+  if (iGaveUp) addLog(0, st.abandoned ? "бросили партию" : "сдались", "zonk");
+  else if (foeGaveUp) addLog(1, st.abandoned ? "бросил партию" : "сдался", "zonk");
+  else if (draw) addLog(2, "ничья");
+  else if (!solo()) addLog(won ? 0 : 1, won ? "выиграли партию!" : "выигрывает партию", "win");
+  status(solo() && !iGaveUp ? `Итог: ${fmt(S.scores[0])} очков` : title);
+  if (won) { sndWin(); confetti(); } else if (!draw) sndLose();
+
+  $("#endTitle").textContent = title;
   $("#fs0").textContent = fmt(S.scores[0]);
   $("#fs1").textContent = fmt(S.scores[1]);
   $("#fsSep").hidden = $("#fs1").hidden = solo();
   $("#fs0").classList.toggle("w", won);
-  $("#fs1").classList.toggle("w", !solo() && !won);
+  $("#fs1").classList.toggle("w", !solo() && !won && !draw);
 
   const money = engine.online && r.result;
   $("#money").hidden = !money;
@@ -831,16 +898,22 @@ async function bootOnline() {
   if (r.gone) return showGone();
   if (r.picking) return openOnlineStart(r.bet, r.picking);
 
-  // Back into a game that is already on
+  // Back into a game that is already on, or a duel that ended while the page was closed
   S.started = true; S.over = false; S.busy = false; S.gen++;
-  sync(r.state, true);
+  if (r.foe) S.foe = r.foe;
+  if (r.state) sync(r.state, true);
   setBrand(` · ставка ${fmt(r.bet)}`);
   hideModal();
+  if (r.final || r.state?.done) return finish(r);
   tg.enableClosingConfirmation?.();
-  addLog(2, "партия продолжается");
-  status(S.tray.length ? "Выберите очковые кости — нажмите на них" : "Ваш ход — бросайте кости");
+  addLog(2, duel() ? `дуэль с ${S.foe}` : "партия продолжается");
+  status(
+    S.cur !== 0 ? `${foe()} ходит — ждём`
+    : S.tray.length ? "Выберите очковые кости — нажмите на них" : "Ваш ход — бросайте кости",
+    S.cur !== 0
+  );
   ui();
-  if (r.state.done) finish(r);
+  watch();
 }
 
 async function boot() {
