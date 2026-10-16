@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>ZONK</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="head">
+    <div class="brand">
+      <h1>ZONK</h1>
+      <small id="brandSub">против бота</small>
+    </div>
+    <div class="tools">
+      <button class="ibtn" id="sndBtn" type="button" aria-pressed="true" aria-label="Звук">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="mute" d="m16 9 6 6m0-6-6 6"/></svg>
+        <span class="t" id="sndTxt">Звук</span>
+      </button>
+      <button class="ibtn" id="newBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        <span class="t">Новая игра</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="players" id="players" aria-label="Счёт">
+      <div class="player" id="p0">
+        <div class="who"><span class="dot"></span>Вы<span class="turnlbl">ходите</span></div>
+        <div class="total" id="t0">0</div>
+        <div class="bar"><i id="b0"></i></div>
+        <div class="meta" id="m0"></div>
+      </div>
+      <div class="player" id="p1">
+        <div class="who"><span class="dot"></span>Бот<span class="turnlbl">ходит</span></div>
+        <div class="total" id="t1">0</div>
+        <div class="bar"><i id="b1"></i></div>
+        <div class="meta" id="m1"></div>
+      </div>
+    </section>
+
+    <section class="tray" id="tray" aria-label="Игровой стол">
+      <div class="aside" id="aside"></div>
+      <div class="dice" id="dice"></div>
+      <p class="status" id="status" aria-live="polite"></p>
+      <div class="stamp" aria-hidden="true"><span>ZONK!</span></div>
+      <div class="banner" id="banner" aria-hidden="true"></div>
+    </section>
+
+    <section class="controls">
+      <div class="turnbox">
+        <span class="lbl">Очки хода</span>
+        <span class="val" id="turn">0</span>
+        <span class="selv" id="selv"></span>
+      </div>
+      <div class="btns">
+        <button class="btn primary" id="roll" type="button">Бросить <span class="chip" id="rollN">6</span><span class="kbd">Пробел</span></button>
+        <button class="btn" id="bank" type="button">Записать <span class="chip" id="bankV">0</span><span class="kbd">Enter</span></button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <section class="panel">
+      <h2>Ход партии</h2>
+      <ul class="log" id="log"></ul>
+    </section>
+    <section class="panel">
+      <h2>Комбинации</h2>
+      <ul class="combos" id="combos"></ul>
+    </section>
+    <section class="panel">
+      <h2>Правила</h2>
+      <ol class="rules" id="rules"></ol>
+    </section>
+  </aside>
+</div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <!-- Offline: the game runs on the page -->
+  <div class="card" id="startView" hidden>
+    <div class="demo" id="demo"></div>
+    <h2 id="mTitle">ZONK</h2>
+    <p>Кости, жадность и немного удачи. Обыграйте бота — наберите цель первым.</p>
+    <div class="field">
+      <span>Цель партии</span>
+      <div class="seg">
+        <input type="radio" name="target" id="tg2" value="2000"><label for="tg2">2 000<small>быстро</small></label>
+        <input type="radio" name="target" id="tg5" value="5000"><label for="tg5">5 000<small>обычно</small></label>
+        <input type="radio" name="target" id="tg10" value="10000"><label for="tg10">10 000<small>долго</small></label>
+      </div>
+    </div>
+    <div class="field">
+      <span>Характер бота</span>
+      <div class="seg">
+        <input type="radio" name="temper" id="tmCalm" value="calm"><label for="tmCalm">Осторожный<small>записывает рано</small></label>
+        <input type="radio" name="temper" id="tmBold" value="bold"><label for="tmBold">Азартный<small>рискует до конца</small></label>
+      </div>
+    </div>
+    <div class="mbtns" id="startBtns">
+      <button class="btn primary" id="startBtn" type="button">Начать партию</button>
+      <button class="btn" id="cancelBtn" type="button" hidden>Вернуться к игре</button>
+    </div>
+  </div>
+
+  <!-- Online: the server rolls the dice -->
+  <div class="card" id="onlineView" hidden>
+    <div class="demo" id="demo2"></div>
+    <h2>ZONK</h2>
+    <p id="betLine"></p>
+    <div class="field">
+      <span>Режим</span>
+      <div class="seg">
+        <input type="radio" name="mode" id="mdBot" value="bot"><label for="mdBot">Против бота<small id="botWinNote"></small></label>
+        <input type="radio" name="mode" id="mdScore" value="score"><label for="mdScore">На очки<small id="roundsNote"></small></label>
+      </div>
+    </div>
+    <div id="botFields" class="field">
+      <span>Цель партии</span>
+      <div class="seg" id="targetSeg"></div>
+      <span>Характер бота</span>
+      <div class="seg" id="temperSeg"></div>
+    </div>
+    <div id="scoreFields" class="field" hidden>
+      <span>Выплата за очки</span>
+      <ul class="paytable" id="paytable"></ul>
+    </div>
+    <p class="err" id="onlineErr"></p>
+    <div class="mbtns">
+      <button class="btn primary" id="onlineStartBtn" type="button">Начать</button>
+    </div>
+  </div>
+
+  <div class="card" id="endView" hidden>
+    <h2 id="endTitle">Победа</h2>
+    <div class="final" id="final"><span class="a" id="fs0">0</span><span id="fsSep">:</span><span class="b" id="fs1">0</span></div>
+    <div class="money" id="money" hidden><b id="moneyNet"></b><span id="moneyBal"></span></div>
+    <p id="endText"></p>
+    <div class="mbtns two" id="endBtns">
+      <button class="btn primary" id="againBtn" type="button">Ещё партия</button>
+      <button class="btn" id="setBtn" type="button">Настройки</button>
+    </div>
+    <div class="mbtns" id="closeBtns" hidden>
+      <button class="btn primary" id="closeBtn" type="button">Закрыть</button>
+    </div>
+  </div>
+
+  <div class="card" id="msgView" hidden>
+    <h2 id="msgTitle"></h2>
+    <p id="msgText"></p>
+    <div class="mbtns">
+      <button class="btn primary" id="msgBtn" type="button">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
