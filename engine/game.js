@@ -21,17 +21,17 @@ export const MODES = { bot: "против бота", score: "на очки" };
 export const TARGETS = [2000, 5000, 10000];
 export const TEMPERS = { calm: "осторожный", bold: "азартный" };
 export const MIN_BANK = 300;
-export const BOT_WIN_MULT = 2; // stake multiplier for a win
+export const BOT_WIN_MULT = 1.9; // stake multiplier for a win
 
 // On points: ROUNDS turns alone, the payout for the total is the first row that fits
 export const ROUNDS = 10;
 export const SCORE_PAYOUT = [
-  { from: 8000, mult: 5 },
-  { from: 7000, mult: 3 },
-  { from: 6000, mult: 2 },
-  { from: 5000, mult: 1.5 },
-  { from: 4500, mult: 1 },
-  { from: 3500, mult: 0.5 },
+  { from: 11500, mult: 3 },
+  { from: 10000, mult: 2 },
+  { from: 8500, mult: 1.5 },
+  { from: 7500, mult: 1.2 },
+  { from: 6500, mult: 0.8 },
+  { from: 5500, mult: 0.5 },
   { from: 0, mult: 0 },
 ];
 
@@ -151,9 +151,16 @@ function checkPick(s, picked) {
 }
 
 // A move of the player whose turn it is: "roll" (the first throw of a turn, or put picked aside and throw
-// the rest) or "bank" (put picked aside and write the turn). Returns an error text, or nothing if made.
+// the rest), "bank" (put picked aside and write the turn) or "forfeit" (give up: the game is lost at once).
+// Returns an error text, or nothing if made.
 export function act(s, action, picked, ev, rnd = Math.random) {
   if (s.done) return "Партия уже закончилась.";
+  if (action === "forfeit") {
+    s.forfeited = true;
+    if (s.mode === "bot") s.winner = (s.cur + 1) % s.players.length;
+    finish(s, ev);
+    return;
+  }
   if (action === "roll" && !s.dice.length) {
     throwDice(s, DICE, ev, rnd);
     return;
@@ -187,12 +194,14 @@ export function publicState(s) {
     rollNo: s.rollNo,
     done: s.done,
     winner: s.winner,
+    forfeited: !!s.forfeited,
   };
 }
 
 // The finished game for the player who started it: stake multiplier and a short description
 export function result(s) {
   const me = s.players[0];
+  if (s.forfeited) return { mult: 0, label: "сдался" };
   if (s.mode === "bot") {
     const score = `${me.total} : ${s.players[1].total}`;
     return s.winner === 0

@@ -49,10 +49,10 @@ button{font:inherit;color:inherit}
   padding-left:max(16px, env(safe-area-inset-left, 0px));
   padding-right:max(16px, env(safe-area-inset-right, 0px));
   display:grid;gap:14px;
-  grid-template-areas:"head" "main" "side";
+  grid-template-areas:"head" "main" "side" "foot";
 }
 @media (min-width: 920px){
-  .app{grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"head head" "main side";column-gap:20px;padding-block:20px 32px}
+  .app{grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"head head" "main side" "foot foot";column-gap:20px;padding-block:20px 32px}
 }
 
 /* header */
@@ -75,6 +75,9 @@ button{font:inherit;color:inherit}
 
 .main{grid-area:main;display:grid;gap:14px;min-width:0}
 .side{grid-area:side;display:grid;gap:14px;align-content:start;min-width:0}
+.foot{grid-area:foot;display:grid}
+.btn.quit{border-color:var(--line);color:var(--ink-dim);min-height:48px}
+.btn.quit:not(:disabled):hover{border-color:var(--zonk);color:var(--zonk)}
 
 /* score plates */
 .players{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -274,6 +277,7 @@ button{font:inherit;color:inherit}
 .panel h2{margin:0;font:700 12px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--brass)}
 .combos{list-style:none;margin:0;padding:0;display:grid;gap:7px}
 .combos li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center}
+.combos li + li{border-top:1px solid var(--line);padding-top:7px}
 .combos .dd{display:flex;gap:3px;flex-wrap:wrap}
 .combos b{font:700 13px var(--f-mono);color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
 .combos small{grid-column:1/-1;font-size:12px;color:var(--ink-dim);margin-top:-1px}

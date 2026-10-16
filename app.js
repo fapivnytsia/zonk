@@ -107,46 +107,73 @@ function savePrefs() {
 const selVals = () => [...S.sel].sort((a, b) => a - b).map(i => S.tray[i]);
 
 // ---------- audio ----------
-let ac = null;
+// Soft sounds: everything goes through one quiet bus with a low-pass filter, only sine waves.
+// Each throw within a turn sounds a little higher, so a long greedy turn audibly climbs.
+const PITCH_STEP = 1.06; // about a semitone per throw
+const PITCH_MAX = 1.6;
+let ac = null, bus = null;
+let rollPitch = 1; // grows with every throw of a turn, back to 1 when a turn starts
 function audio() {
   if (!S.sound) return null;
   try {
-    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200;
+      bus = ac.createGain(); bus.gain.value = 0.7;
+      bus.connect(lp).connect(ac.destination);
+    }
     if (ac.state === "suspended") ac.resume();
     return ac;
   } catch (e) { return null; }
 }
-function clack(t) {
+// A soft wooden knock: a short sine falling in pitch and a breath of muffled noise
+function knock(t, pitch = 1, vol = 0.07) {
   const a = audio(); if (!a) return;
-  const len = Math.floor(a.sampleRate * 0.045);
+  const t0 = a.currentTime + t;
+  const f0 = rnd(240, 300) * pitch;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(f0 * 1.5, t0);
+  o.frequency.exponentialRampToValueAtTime(f0, t0 + 0.04);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+  o.connect(g).connect(bus);
+  o.start(t0); o.stop(t0 + 0.15);
+
+  const len = Math.floor(a.sampleRate * 0.03);
   const buf = a.createBuffer(1, len, a.sampleRate);
   const d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 4);
   const src = a.createBufferSource(); src.buffer = buf;
-  const f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = rnd(1400, 3400); f.Q.value = 3;
-  const g = a.createGain(); g.gain.value = rnd(0.25, 0.5);
-  src.connect(f).connect(g).connect(a.destination);
-  src.start(a.currentTime + t);
+  const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 900 * pitch;
+  const ng = a.createGain(); ng.gain.value = vol * 0.6;
+  src.connect(f).connect(ng).connect(bus);
+  src.start(t0);
 }
-function tone(freq, t, dur, type = "sine", vol = 0.12) {
+function tone(freq, t, dur, vol = 0.06) {
   const a = audio(); if (!a) return;
   const o = a.createOscillator(), g = a.createGain();
-  o.type = type; o.frequency.value = freq;
+  o.type = "sine"; o.frequency.value = freq;
   const t0 = a.currentTime + t;
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g).connect(a.destination);
+  o.connect(g).connect(bus);
   o.start(t0); o.stop(t0 + dur + 0.05);
 }
-const sndRoll = n => { for (let i = 0; i < 4 + n * 2; i++) clack(rnd(0.02, ROLL_MS / 1000 * 0.85)); };
-const sndPick = () => tone(rnd(560, 640), 0, 0.06, "square", 0.035);
-const sndTake = () => { tone(420, 0, 0.08, "triangle", 0.08); tone(630, 0.05, 0.1, "triangle", 0.06); };
-const sndBank = () => { tone(660, 0, 0.14, "triangle"); tone(880, 0.09, 0.18, "triangle"); tone(1320, 0.2, 0.3, "triangle", 0.08); };
-const sndZonk = () => { tone(150, 0, 0.5, "sawtooth", 0.09); tone(112, 0.07, 0.55, "sawtooth", 0.08); clack(0); clack(0.02); };
-const sndHot = () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.07, 0.22, "triangle", 0.08));
-const sndWin = () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * 0.11, 0.4, "triangle", 0.09));
-const sndLose = () => [392, 330, 262].forEach((f, i) => tone(f, i * 0.18, 0.45, "sine", 0.09));
+// A throw: a few knocks spread over the animation at this turn's pitch, then the pitch goes up
+function sndRoll(n) {
+  for (let i = 0; i < 3 + n; i++) knock(rnd(0.02, ROLL_MS / 1000 * 0.8), rollPitch, rnd(0.04, 0.08));
+  rollPitch = Math.min(PITCH_MAX, rollPitch * PITCH_STEP);
+}
+const sndPick = () => tone(rnd(600, 680), 0, 0.08, 0.03);
+const sndTake = () => { tone(440, 0, 0.12, 0.04); tone(587, 0.06, 0.14, 0.035); };
+const sndBank = () => [523, 659, 784].forEach((f, i) => tone(f, i * 0.09, 0.35, 0.05));
+const sndZonk = () => { tone(330, 0, 0.35, 0.06); tone(247, 0.12, 0.45, 0.055); tone(196, 0.26, 0.6, 0.05); };
+const sndHot = () => [523, 659, 784, 1047].forEach((f, i) => tone(f * Math.min(rollPitch, 1.3), i * 0.07, 0.25, 0.045));
+const sndWin = () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * 0.11, 0.5, 0.05));
+const sndLose = () => [392, 330, 262].forEach((f, i) => tone(f, i * 0.18, 0.5, 0.05));
 const haptic = kind => {
   if (kind === "tap") tg?.HapticFeedback?.selectionChanged();
   else if (kind === "roll") tg?.HapticFeedback?.impactOccurred("medium");
@@ -291,6 +318,8 @@ function ui() {
   $("#rollN").textContent = left;
   $("#bank").disabled = !(my && ss > 0 && S.turn + ss >= S.minBank);
   $("#bankV").textContent = fmt(S.turn + ss);
+  $("#quitBtn").hidden = !(S.started && !S.over);
+  $("#quitBtn").disabled = S.busy;
   refreshDice(ss);
 }
 
@@ -358,6 +387,7 @@ async function replay(events, g) {
 
 async function showTurn(e) {
   S.cur = e.p; S.turn = 0; S.tray = []; S.sel.clear(); S.aside = []; S.rolling = false;
+  rollPitch = 1;
   if (e.round) S.round = e.round;
   $("#tray").classList.remove("zonked");
   renderAside();
@@ -480,6 +510,20 @@ async function apply(r, g) {
 
 // ---------- player input ----------
 const canMove = () => S.started && !S.over && S.cur === 0 && !S.busy;
+
+// "Закончить сессию": the game is lost at once, after a confirmation
+async function onQuit() {
+  if (!S.started || S.over || S.busy) return;
+  const q = "Закончить партию? Это засчитается как проигрыш.";
+  const sure = tg?.showConfirm ? await new Promise(ok => tg.showConfirm(q, ok)) : window.confirm(q);
+  if (!sure || S.over || S.busy) return;
+  const g = S.gen;
+  S.busy = true;
+  ui();
+  const r = await engine.move("forfeit", []);
+  if (!alive(g)) return;
+  await apply(r, g);
+}
 
 async function move(action) {
   const g = S.gen;
@@ -636,12 +680,13 @@ function finish(r) {
   S.over = true; S.busy = false;
   tg?.disableClosingConfirmation?.();
   ui();
-  const won = solo() ? (r.result?.net ?? 0) > 0 : st.winner === 0;
-  if (!solo()) addLog(st.winner, st.winner ? "выигрывает партию" : "выиграли партию!", "win");
-  status(solo() ? `Итог: ${fmt(S.scores[0])} очков` : won ? "Победа!" : "Бот выиграл партию");
+  const won = !st.forfeited && (solo() ? (r.result?.net ?? 0) > 0 : st.winner === 0);
+  if (st.forfeited) addLog(0, "сдались", "zonk");
+  else if (!solo()) addLog(st.winner, st.winner ? "выигрывает партию" : "выиграли партию!", "win");
+  status(st.forfeited ? "Партия сдана" : solo() ? `Итог: ${fmt(S.scores[0])} очков` : won ? "Победа!" : "Бот выиграл партию");
   if (won) { sndWin(); confetti(); } else sndLose();
 
-  $("#endTitle").textContent = solo() ? "Итог" : won ? "Победа!" : "Бот выиграл";
+  $("#endTitle").textContent = st.forfeited ? "Партия сдана" : solo() ? "Итог" : won ? "Победа!" : "Бот выиграл";
   $("#fs0").textContent = fmt(S.scores[0]);
   $("#fs1").textContent = fmt(S.scores[1]);
   $("#fsSep").hidden = $("#fs1").hidden = solo();
@@ -658,7 +703,9 @@ function finish(r) {
   }
   $("#endText").textContent = engine.online
     ? "Новую партию начни там, откуда открыл игру."
-    : won
+    : st.forfeited
+      ? "Бот засчитал победу. Начните новую партию."
+      : won
       ? `Вы первым добрались до ${fmt(S.target)}. Бот требует реванша.`
       : `Бот первым набрал ${fmt(S.target)}. Попробуйте ещё раз.`;
   $("#endBtns").hidden = engine.online;
@@ -715,7 +762,10 @@ function buildCombos() {
     [[4, 4, 4], "400", "Три одинаковых: номинал × 100"],
     [[6, 6, 6, 6], "1200", "Четыре — тройка × 2"],
     [[5, 5, 5, 5, 5], "2000", "Пять — × 4, шесть — × 8"],
-    [[1, 2, 3, 4, 5, 6], "1500", "Стрит"],
+    [[3, 3, 3, 2, 2], "1000", "Фулл-хаус: три одинаковых и пара"],
+    [[1, 2, 3, 4, 5], "500", "Малый стрит без шестёрки"],
+    [[2, 3, 4, 5, 6], "750", "Малый стрит без единицы"],
+    [[1, 2, 3, 4, 5, 6], "1500", "Большой стрит"],
     [[2, 2, 3, 3, 6, 6], "750", "Три пары"],
   ];
   $("#combos").innerHTML = C.map(([v, s, note]) =>
@@ -745,6 +795,7 @@ function wire() {
   $("#mdBot").addEventListener("change", modeFields);
   $("#mdScore").addEventListener("change", modeFields);
   $("#closeBtn").addEventListener("click", closeApp);
+  $("#quitBtn").addEventListener("click", onQuit);
   $("#msgBtn").addEventListener("click", closeApp);
   $("#sndBtn").addEventListener("click", () => {
     S.sound = !S.sound; setSoundBtn(); savePrefs();
